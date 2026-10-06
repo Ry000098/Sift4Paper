@@ -20,8 +20,7 @@ jobs:
       - name: Extract Sift project
         run: |
           mkdir sift-build
-          unzip TheSift-GitHub-SMALL-Upload/SiftProject.zip -d sift-build
-
+unzip TheSift-GitHub-SMALL-Upload/TheSift-GitHub-SMALL/SiftProject.zip -d sift-build
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
