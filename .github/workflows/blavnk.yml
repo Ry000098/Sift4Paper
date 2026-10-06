@@ -1,4 +1,4 @@
-name: Build The Sift
+name: Build The Sift V2
 
 on:
   workflow_dispatch:
@@ -19,9 +19,6 @@ jobs:
 
       - name: Find project ZIP
         run: |
-          echo "Looking for SiftProject.zip..."
-          find . -name "SiftProject.zip" -print
-
           PROJECT_ZIP=$(find . -name "SiftProject.zip" -print -quit)
 
           if [ -z "$PROJECT_ZIP" ]; then
@@ -29,16 +26,34 @@ jobs:
             exit 1
           fi
 
-          echo "Found project at: $PROJECT_ZIP"
+          echo "Found ZIP: $PROJECT_ZIP"
           echo "PROJECT_ZIP=$PROJECT_ZIP" >> "$GITHUB_ENV"
 
-      - name: Extract Sift project
+      - name: Extract project
         run: |
           mkdir -p sift-build
           unzip "$PROJECT_ZIP" -d sift-build
 
-          echo "Extracted project:"
-          ls -la sift-build
+          echo "Files extracted:"
+          find sift-build -maxdepth 4 -type f | head -100
+
+      - name: Find Gradle project
+        run: |
+          BUILD_FILE=$(find sift-build \
+            \( -name "build.gradle" -o -name "build.gradle.kts" \) \
+            -print -quit)
+
+          if [ -z "$BUILD_FILE" ]; then
+            echo "ERROR: No build.gradle or build.gradle.kts was found."
+            echo "Contents of the ZIP:"
+            find sift-build -maxdepth 5 -type f
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+
+          echo "Found Gradle project at: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -46,14 +61,14 @@ jobs:
           gradle-version: '9.1.0'
 
       - name: Build Sift
-        working-directory: sift-build
-        run: gradle build --stacktrace
-
-      - name: Find finished JAR
         run: |
-          echo "Searching for built JAR..."
+          echo "Building from: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+          gradle build --stacktrace
 
-          JAR=$(find sift-build/build/libs \
+      - name: Find finished plugin JAR
+        run: |
+          JAR=$(find "$PROJECT_DIR/build/libs" \
             -type f \
             -name "*.jar" \
             ! -name "*sources*" \
@@ -61,14 +76,15 @@ jobs:
             -print -quit)
 
           if [ -z "$JAR" ]; then
-            echo "ERROR: Build finished but no plugin JAR was found."
+            echo "ERROR: Gradle finished but I couldn't find the plugin JAR."
+            find "$PROJECT_DIR/build" -type f || true
             exit 1
           fi
 
-          echo "Found JAR: $JAR"
+          echo "Found plugin: $JAR"
           cp "$JAR" UPLOAD-THIS-TO-PEBBLEHOST.jar
 
-      - name: Upload finished plugin
+      - name: Upload finished Sift plugin
         uses: actions/upload-artifact@v4
         with:
           name: TheSift-Paper-26.3
