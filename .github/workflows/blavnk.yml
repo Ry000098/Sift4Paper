@@ -1,0 +1,76 @@
+name: Build The Sift
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get project
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Find project ZIP
+        run: |
+          echo "Looking for SiftProject.zip..."
+          find . -name "SiftProject.zip" -print
+
+          PROJECT_ZIP=$(find . -name "SiftProject.zip" -print -quit)
+
+          if [ -z "$PROJECT_ZIP" ]; then
+            echo "ERROR: SiftProject.zip was not found."
+            exit 1
+          fi
+
+          echo "Found project at: $PROJECT_ZIP"
+          echo "PROJECT_ZIP=$PROJECT_ZIP" >> "$GITHUB_ENV"
+
+      - name: Extract Sift project
+        run: |
+          mkdir -p sift-build
+          unzip "$PROJECT_ZIP" -d sift-build
+
+          echo "Extracted project:"
+          ls -la sift-build
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
+
+      - name: Build Sift
+        working-directory: sift-build
+        run: gradle build --stacktrace
+
+      - name: Find finished JAR
+        run: |
+          echo "Searching for built JAR..."
+
+          JAR=$(find sift-build/build/libs \
+            -type f \
+            -name "*.jar" \
+            ! -name "*sources*" \
+            ! -name "*javadoc*" \
+            -print -quit)
+
+          if [ -z "$JAR" ]; then
+            echo "ERROR: Build finished but no plugin JAR was found."
+            exit 1
+          fi
+
+          echo "Found JAR: $JAR"
+          cp "$JAR" UPLOAD-THIS-TO-PEBBLEHOST.jar
+
+      - name: Upload finished plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheSift-Paper-26.3
+          path: UPLOAD-THIS-TO-PEBBLEHOST.jar
+          if-no-files-found: error
